@@ -3,10 +3,14 @@
  * CUSTOMIZATION SECTION - Update these values for your MCP server
  * ============================================================================
  */
+
+// Import Google Ads client functions
+import { listAccessibleCustomers, executeGaqlQuery, getGaqlDocumentation, getReportingViewDocumentation } from './google-ads-client';
+
 const CONFIG = {
-	serverName: 'typingmind-mcp-cloudflare-starter',
+	serverName: 'google-ads-mcp',
 	serverVersion: '1.0.0',
-	serverDescription: 'TypingMind MCP Cloudflare Starter',
+	serverDescription: 'Google Ads MCP Server',
 	protocolVersion: '2024-11-05',
 	keepAliveInterval: 30000, // 30 seconds
 } as const;
@@ -30,7 +34,7 @@ interface Tool {
 		properties: Record<string, { type: string; description: string }>;
 		required: string[];
 	};
-	handler: (args: Record<string, unknown>) => Promise<ToolResult> | ToolResult;
+	handler: (args: Record<string, unknown>, env: Env) => Promise<ToolResult> | ToolResult;
 }
 
 interface ToolResult {
@@ -40,49 +44,170 @@ interface ToolResult {
 	}>;
 }
 
-// Define your tools here - these are examples you should replace
+// Define your tools here
 const TOOLS: Tool[] = [
 	{
-		name: 'hello',
-		description: 'Says hello to a person',
+		name: 'list_accessible_accounts',
+		description: 'Lists all Google Ads customer accounts that are accessible with the current credentials',
 		inputSchema: {
 			type: 'object',
-			properties: {
-				name: { type: 'string', description: 'Name to greet' },
-			},
-			required: ['name'],
+			properties: {},
+			required: [],
 		},
-		handler: async (args) => ({
-			content: [
-				{
-					type: 'text',
-					text: `Hello, ${args.name}! Your MCP server is working!`,
-				},
-			],
-		}),
+		handler: async (args: Record<string, unknown>, env: Env): Promise<ToolResult> => {
+			try {
+				const credentials = {
+					client_id: env.GOOGLE_ADS_CLIENT_ID,
+					client_secret: env.GOOGLE_ADS_CLIENT_SECRET,
+					refresh_token: env.GOOGLE_ADS_REFRESH_TOKEN,
+					developer_token: env.GOOGLE_ADS_DEVELOPER_TOKEN,
+					login_customer_id: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+				};
+
+				// Validate required credentials
+				if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token || !credentials.developer_token) {
+					throw new Error('Missing required Google Ads credentials. Please check your environment variables.');
+				}
+
+				const result = await listAccessibleCustomers(credentials);
+
+				// Return formatted text for human readability and AI understanding
+				// Include both formatted text and structured data
+				const responseText = result.formatted
+					? `${result.formatted}\n\n---\n\n**Structured Data (JSON):**\n\`\`\`json\n${JSON.stringify(
+							{ accounts: result.accounts, resourceNames: result.resourceNames },
+							null,
+							2
+					  )}\n\`\`\``
+					: JSON.stringify(result, null, 2);
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: responseText,
+						},
+					],
+				};
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				throw new Error(`Failed to list accessible accounts: ${errorMessage}`);
+			}
+		},
 	},
 	{
-		name: 'add',
-		description: 'Adds two numbers together',
+		name: 'execute_gaql',
+		description: 'Executes a Google Ads Query Language (GAQL) query and returns the results',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				a: { type: 'number', description: 'First number' },
-				b: { type: 'number', description: 'Second number' },
+				query: {
+					type: 'string',
+					description: 'The GAQL query to execute (e.g., "SELECT campaign.id, campaign.name FROM campaign")',
+				},
+				customer_id: {
+					type: 'string',
+					description: 'The Google Ads customer ID to query (e.g., "1234567890")',
+				},
+				login_customer_id: {
+					type: 'string',
+					description: 'Optional login customer ID for manager accounts',
+				},
 			},
-			required: ['a', 'b'],
+			required: ['query', 'customer_id'],
 		},
-		handler: async (args) => {
-			const a = args.a as number;
-			const b = args.b as number;
-			return {
-				content: [
-					{
-						type: 'text',
-						text: `${a} + ${b} = ${a + b}`,
-					},
-				],
-			};
+		handler: async (args: Record<string, unknown>, env: Env): Promise<ToolResult> => {
+			try {
+				const query = args.query as string;
+				const customer_id = args.customer_id as string;
+				const login_customer_id = args.login_customer_id as string | undefined;
+
+				if (!query || !customer_id) {
+					throw new Error('query and customer_id are required');
+				}
+
+				const credentials = {
+					client_id: env.GOOGLE_ADS_CLIENT_ID,
+					client_secret: env.GOOGLE_ADS_CLIENT_SECRET,
+					refresh_token: env.GOOGLE_ADS_REFRESH_TOKEN,
+					developer_token: env.GOOGLE_ADS_DEVELOPER_TOKEN,
+					login_customer_id: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+				};
+
+				// Validate required credentials
+				if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token || !credentials.developer_token) {
+					throw new Error('Missing required Google Ads credentials. Please check your environment variables.');
+				}
+
+				const result = await executeGaqlQuery(credentials, query, customer_id, login_customer_id);
+				return {
+					content: [
+						{
+							type: 'text',
+							text: JSON.stringify(result, null, 2),
+						},
+					],
+				};
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				throw new Error(`Failed to execute GAQL query: ${errorMessage}`);
+			}
+		},
+	},
+	{
+		name: 'get_gaql_doc',
+		description: 'Returns documentation about Google Ads Query Language (GAQL) syntax and available resources',
+		inputSchema: {
+			type: 'object',
+			properties: {},
+			required: [],
+		},
+		handler: async (args: Record<string, unknown>): Promise<ToolResult> => {
+			try {
+				const documentation = getGaqlDocumentation();
+				return {
+					content: [
+						{
+							type: 'text',
+							text: documentation,
+						},
+					],
+				};
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				throw new Error(`Failed to get GAQL documentation: ${errorMessage}`);
+			}
+		},
+	},
+	{
+		name: 'get_reporting_view_doc',
+		description: 'Returns documentation about Google Ads reporting views and available fields/metrics',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				view: {
+					type: 'string',
+					description: 'Optional specific reporting view to get documentation for (e.g., "campaign", "ad_group", "keyword")',
+				},
+			},
+			required: [],
+		},
+		handler: async (args: Record<string, unknown>): Promise<ToolResult> => {
+			try {
+				const view = args.view as string | undefined;
+				const documentation = getReportingViewDocumentation(view);
+				return {
+					content: [
+						{
+							type: 'text',
+							text: documentation,
+						},
+					],
+				};
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				throw new Error(`Failed to get reporting view documentation: ${errorMessage}`);
+			}
 		},
 	},
 ];
@@ -103,7 +228,7 @@ interface Session {
 const sessions = new Map<string, Session>();
 
 export default {
-	async fetch(request: Request): Promise<Response> {
+	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
 
 		// CORS headers - modify if you need to restrict origins
@@ -147,7 +272,7 @@ export default {
 			const encoder = new TextEncoder();
 
 			// Generate session ID
-			const sessionId = crypto.randomUUID().replace(/-/g, '');
+			const sessionId = crypto.randomUUID().replace(/\-/g, '');
 
 			// Store session
 			sessions.set(sessionId, { writer, encoder });
@@ -187,7 +312,7 @@ export default {
 		if (url.pathname === '/sse' && request.method === 'POST') {
 			console.log('Received POST to /sse - redirecting to message handler');
 			// Treat this as a direct message without session
-			return handleMessage(request, corsHeaders, null);
+			return handleMessage(request, corsHeaders, null, env);
 		}
 
 		// Messages endpoint with session
@@ -196,7 +321,7 @@ export default {
 			console.log('Received POST to /sse/message with sessionId:', sessionId);
 
 			const session = sessions.get(sessionId || '') ?? null;
-			return handleMessage(request, corsHeaders, session);
+			return handleMessage(request, corsHeaders, session, env);
 		}
 
 		return new Response('Not Found', {
@@ -207,7 +332,7 @@ export default {
 };
 
 // Centralized message handler
-async function handleMessage(request: Request, corsHeaders: Record<string, string>, session: Session | null) {
+async function handleMessage(request: Request, corsHeaders: Record<string, string>, session: Session | null, env: Env) {
 	try {
 		const body = await request.text();
 		console.log('Received body:', body);
@@ -275,19 +400,20 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 
 			if (tool) {
 				try {
-					const result = await tool.handler(args);
+					const result = await tool.handler(args, env);
 					response = {
 						jsonrpc: '2.0',
 						id: message.id,
 						result,
 					};
-				} catch (toolError) {
+				} catch (toolError: unknown) {
+					const errorMessage = toolError instanceof Error ? toolError.message : 'Tool execution failed';
 					response = {
 						jsonrpc: '2.0',
 						id: message.id,
 						error: {
 							code: -32603,
-							message: toolError instanceof Error ? toolError.message : 'Tool execution failed',
+							message: errorMessage,
 						},
 					};
 				}

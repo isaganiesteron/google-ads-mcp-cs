@@ -1,7 +1,8 @@
 {
-	"name": "typingmind-mcp-cloudflare-starter",
+	"name": "google-ads-mcp-cs",
 	"version": "1.0.0",
 	"private": true,
+	"type": "module",
 	"scripts": {
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",

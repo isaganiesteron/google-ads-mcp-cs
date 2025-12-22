@@ -1,0 +1,262 @@
+{
+	"info": {
+		"name": "Google Ads MCP Server",
+		"description": "Collection for testing Google Ads MCP Server endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8787",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						""
+					]
+				},
+				"description": "Check if the server is running"
+			},
+			"response": []
+		},
+		{
+			"name": "Initialize",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"initialize\",\n  \"params\": {\n    \"protocolVersion\": \"2024-11-05\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"test-client\",\n      \"version\": \"1.0.0\"\n    }\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "Initialize the MCP connection"
+			},
+			"response": []
+		},
+		{
+			"name": "List Tools",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/list\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "List all available MCP tools"
+			},
+			"response": []
+		},
+		{
+			"name": "Get GAQL Documentation",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_gaql_doc\",\n    \"arguments\": {}\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "Get GAQL documentation"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Reporting View Documentation",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_reporting_view_doc\",\n    \"arguments\": {}\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "Get reporting view documentation"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Reporting View Documentation (with view)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_reporting_view_doc\",\n    \"arguments\": {\n      \"view\": \"campaign\"\n    }\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "Get documentation for a specific reporting view (campaign)"
+			},
+			"response": []
+		},
+		{
+			"name": "List Accessible Accounts",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 6,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"list_accessible_accounts\",\n    \"arguments\": {}\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "List all accessible Google Ads customer accounts (requires credentials in .dev.vars)"
+			},
+			"response": []
+		},
+		{
+			"name": "Execute GAQL Query",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 7,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"execute_gaql\",\n    \"arguments\": {\n      \"query\": \"SELECT campaign.id, campaign.name FROM campaign LIMIT 10\",\n      \"customer_id\": \"YOUR_CUSTOMER_ID\"\n    }\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "Execute a GAQL query (replace YOUR_CUSTOMER_ID with your actual customer ID)"
+			},
+			"response": []
+		},
+		{
+			"name": "Execute GAQL Query (with login_customer_id)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 8,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"execute_gaql\",\n    \"arguments\": {\n      \"query\": \"SELECT campaign.id, campaign.name FROM campaign LIMIT 10\",\n      \"customer_id\": \"YOUR_CUSTOMER_ID\",\n      \"login_customer_id\": \"YOUR_LOGIN_CUSTOMER_ID\"\n    }\n  }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8787/sse",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8787",
+					"path": [
+						"sse"
+					]
+				},
+				"description": "Execute a GAQL query with login customer ID (for manager accounts)"
+			},
+			"response": []
+		}
+	]
+}
+
