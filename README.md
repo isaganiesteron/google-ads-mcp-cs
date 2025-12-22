@@ -1,103 +1,99 @@
-# TypingMind MCP Cloudflare Starter
+# Google Ads MCP Server
 
-A production-ready starter template for building Model Context Protocol (MCP) servers on Cloudflare Workers, specifically designed for TypingMind integration. This template provides SSE (Server-Sent Events) support, proper CORS handling, and a clean architecture for adding custom tools.
+The Google Ads MCP Server is an implementation of the Model Context Protocol (MCP) that enables Large Language Models (LLMs) to interact directly with the Google Ads API. This implementation runs on Cloudflare Workers, providing a serverless, globally distributed MCP server.
+
+**This is not an officially supported Google product.**
+
+## Disclaimer
+
+Copyright Google LLC. Supported by Google LLC and/or its affiliate(s). This solution, including any related sample code or data, is made available on an "as is," "as available," and "with all faults" basis, solely for illustrative purposes, and without warranty or representation of any kind. This solution is experimental, unsupported and provided solely for your convenience. Your use of it is subject to your agreements with Google, as applicable, and may constitute a beta feature as defined under those agreements. To the extent that you make any data available to Google in connection with your use of the solution, you represent and warrant that you have all necessary and appropriate rights, consents and permissions to permit Google to use and process that data. By using any portion of this solution, you acknowledge, assume and accept all risks, known and unknown, associated with its usage and any processing of data by Google, including with respect to your deployment of any portion of this solution in your systems, or usage in connection with your business, if at all. With respect to the entrustment of personal information to Google, you will verify that the established system is sufficient by checking Google's privacy policy and other public information, and you agree that no further information will be provided by Google.
 
 ## Features
 
-- **SSE Support**: Real-time communication with MCP clients via Server-Sent Events
+- **Google Ads API Integration**: Direct access to Google Ads API functionality
 - **Cloudflare Workers**: Serverless deployment with global edge network
+- **SSE Support**: Real-time communication with MCP clients via Server-Sent Events
 - **TypeScript**: Full type safety and excellent developer experience
-- **Modular Tools**: Easy-to-extend tool system with clear separation of concerns
+- **Modular Tools**: Easy-to-extend tool system for Google Ads operations
 - **Production Ready**: Includes error handling, CORS, health checks, and session management
-- **TypingMind Compatible**: Tested and working with TypingMind MCP integration
 
-## Quick Start
+## Getting Started
 
-### 1. Fork this repository
+### 1. Prerequisites
 
-Click the "Fork" button on GitHub to create your own copy of this template.
+- Node.js 18+ and npm
+- A Google Ads account with API access
+- Google Ads API credentials (see step 2)
+- A Cloudflare account (for deployment)
 
-### 2. Clone your fork
+### 2. Configure Google Ads API Credentials
+
+This tool requires Google Ads API credentials. You'll need to set up OAuth2 credentials and obtain the following:
+
+- `client_id`: Your OAuth2 client ID
+- `client_secret`: Your OAuth2 client secret
+- `refresh_token`: OAuth2 refresh token
+- `developer_token`: Your Google Ads API developer token
+- `login_customer_id`: (Optional) The customer ID to use for login
+
+You can generate these credentials by following the [Google Ads API authentication guide](https://developers.google.com/google-ads/api/docs/oauth/overview).
+
+### 3. Clone and Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/your-mcp-server.git
-cd your-mcp-server
-```
-
-### 3. Install dependencies
-
-```bash
+git clone https://github.com/YOUR_USERNAME/google-ads-mcp-cs.git
+cd google-ads-mcp-cs
 npm install
 ```
 
-### 4. Customize your MCP server
+### 4. Configure Environment Variables
 
-Open `src/index.ts` and modify:
+Set up your Google Ads credentials as Cloudflare Workers secrets:
 
-**a. Update the CONFIG section** (lines 6-12):
+```bash
+# Using Wrangler CLI
+wrangler secret put GOOGLE_ADS_CLIENT_ID
+wrangler secret put GOOGLE_ADS_CLIENT_SECRET
+wrangler secret put GOOGLE_ADS_REFRESH_TOKEN
+wrangler secret put GOOGLE_ADS_DEVELOPER_TOKEN
+wrangler secret put GOOGLE_ADS_LOGIN_CUSTOMER_ID  # Optional
+```
+
+Or for local development, create a `.dev.vars` file (this file should be in `.gitignore`):
+
+```bash
+GOOGLE_ADS_CLIENT_ID=your_client_id
+GOOGLE_ADS_CLIENT_SECRET=your_client_secret
+GOOGLE_ADS_REFRESH_TOKEN=your_refresh_token
+GOOGLE_ADS_DEVELOPER_TOKEN=your_developer_token
+GOOGLE_ADS_LOGIN_CUSTOMER_ID=your_customer_id  # Optional
+```
+
+### 5. Customize Your MCP Server
+
+Update the configuration in `src/index.ts`:
+
 ```typescript
 const CONFIG = {
-	serverName: 'your-mcp-name',           // Update with your server name
-	serverVersion: '1.0.0',                // Your version
-	serverDescription: 'Your MCP Server', // Description
-	protocolVersion: '2024-11-05',         // MCP protocol version
-	keepAliveInterval: 30000,              // SSE keep-alive interval (ms)
+	serverName: 'google-ads-mcp',
+	serverVersion: '1.0.0',
+	serverDescription: 'Google Ads MCP Server',
+	protocolVersion: '2024-11-05',
+	keepAliveInterval: 30000,
 } as const;
 ```
 
-**b. Update package.json**:
-```json
-{
-	"name": "your-mcp-name",
-	"version": "1.0.0",
-	...
-}
-```
+### 6. Add Google Ads Tools
 
-**c. Update wrangler.jsonc**:
-```jsonc
-{
-	"name": "your-mcp-name",  // This becomes your worker's name
-	...
-}
-```
+Replace the example tools in `src/index.ts` with Google Ads API tools. Examples include:
 
-### 5. Add your custom tools
+- List all campaigns
+- Get campaign metrics
+- List ad groups
+- Get ad group performance
+- And more...
 
-Replace the example tools in the `TOOLS` array (lines 44-88 in `src/index.ts`):
-
-```typescript
-const TOOLS: Tool[] = [
-	{
-		name: 'your_tool_name',
-		description: 'What your tool does',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				param1: { type: 'string', description: 'First parameter' },
-				param2: { type: 'number', description: 'Second parameter' },
-			},
-			required: ['param1'],
-		},
-		handler: async (args) => {
-			// Your tool logic here
-			const result = doSomething(args.param1, args.param2);
-
-			return {
-				content: [
-					{
-						type: 'text',
-						text: `Result: ${result}`,
-					},
-				],
-			};
-		},
-	},
-	// Add more tools here...
-];
-```
-
-### 6. Test locally
+### 7. Test Locally
 
 ```bash
 npm run dev
@@ -106,34 +102,53 @@ npm run dev
 Your server will be available at `http://localhost:8787`
 
 Test the health endpoint:
+
 ```bash
 curl http://localhost:8787
 ```
 
-### 7. Deploy to Cloudflare Workers
+### 8. Deploy to Cloudflare Workers
 
 ```bash
 npm run deploy
 ```
 
-After deployment, Cloudflare will provide your worker URL (e.g., `https://typingmind-mcp-cloudflare-starter.YOUR_SUBDOMAIN.workers.dev`)
+After deployment, Cloudflare will provide your worker URL (e.g., `https://google-ads-mcp.YOUR_SUBDOMAIN.workers.dev`)
 
-## Using with TypingMind
+## Using with MCP Clients
+
+### TypingMind
 
 1. Deploy your MCP server to Cloudflare Workers
 2. In TypingMind, go to Settings → MCP Servers
 3. Add a new server:
-   - **Name**: Your MCP Server
-   - **URL**: Your Cloudflare Worker URL (e.g., `https://typingmind-mcp-cloudflare-starter.YOUR_SUBDOMAIN.workers.dev/sse`)
+   - **Name**: Google Ads MCP Server
+   - **URL**: Your Cloudflare Worker URL (e.g., `https://google-ads-mcp.YOUR_SUBDOMAIN.workers.dev/sse`)
    - **Transport**: SSE
 4. Test the connection
+
+### Other MCP Clients
+
+The server supports standard MCP protocol over SSE. Configure your MCP client to connect to:
+
+- **SSE Endpoint**: `https://your-worker-url.workers.dev/sse`
+- **Direct HTTP**: `https://your-worker-url.workers.dev/sse` (POST)
+
+## Example Usage
+
+Once connected, you can ask questions like:
+
+- "list all campaigns"
+- "show me metrics for campaign `[CAMPAIGN_ID]`"
+- "get all ad groups"
+- "show performance for ad group `[AD_GROUP_ID]`"
 
 ## Project Structure
 
 ```
 .
 ├── src/
-│   └── index.ts          # Main MCP server code
+│   └── index.ts          # Main MCP server code with Google Ads tools
 ├── test/
 │   └── index.spec.ts     # Tests
 ├── wrangler.jsonc        # Cloudflare Workers config
@@ -157,115 +172,89 @@ Each tool must implement the `Tool` interface:
 
 ```typescript
 interface Tool {
-	name: string;           // Unique tool identifier
-	description: string;    // What the tool does
-	inputSchema: {          // JSON Schema for input validation
+	name: string; // Unique tool identifier
+	description: string; // What the tool does
+	inputSchema: {
+		// JSON Schema for input validation
 		type: string;
 		properties: Record<string, { type: string; description: string }>;
 		required: string[];
 	};
-	handler: (args: Record<string, unknown>) => Promise<ToolResult> | ToolResult;
+	handler: (args: Record<string, unknown>, env: Env) => Promise<ToolResult> | ToolResult;
 }
 ```
 
-### Tool Handler
-
-The handler function receives the arguments and must return a `ToolResult`:
-
-```typescript
-interface ToolResult {
-	content: Array<{
-		type: string;    // Usually 'text'
-		text: string;    // The response text
-	}>;
-}
-```
-
-### Example Tool with Error Handling
+### Example Google Ads Tool
 
 ```typescript
 {
-	name: 'fetch_data',
-	description: 'Fetches data from an API',
+	name: 'list_campaigns',
+	description: 'Lists all campaigns in the Google Ads account',
 	inputSchema: {
 		type: 'object',
 		properties: {
-			endpoint: { type: 'string', description: 'API endpoint to call' },
+			customer_id: {
+				type: 'string',
+				description: 'The Google Ads customer ID'
+			},
 		},
-		required: ['endpoint'],
+		required: ['customer_id'],
 	},
-	handler: async (args) => {
+	handler: async (args, env) => {
 		try {
-			const response = await fetch(args.endpoint as string);
-			const data = await response.json();
-
+			// Initialize Google Ads API client
+			// Fetch campaigns
+			// Return results
 			return {
-				content: [
-					{
-						type: 'text',
-						text: JSON.stringify(data, null, 2),
-					},
-				],
+				content: [{
+					type: 'text',
+					text: JSON.stringify(campaigns, null, 2),
+				}],
 			};
 		} catch (error) {
-			throw new Error(`Failed to fetch data: ${error.message}`);
+			throw new Error(`Failed to list campaigns: ${error.message}`);
 		}
 	},
 }
 ```
 
-### Using Cloudflare Workers Features
+### Accessing Environment Variables
 
-You can use all Cloudflare Workers features in your tools:
+Google Ads credentials are available through the `env` parameter:
 
 ```typescript
-// KV Storage (requires binding in wrangler.jsonc)
 handler: async (args, env) => {
-	await env.MY_KV.put('key', 'value');
-	const value = await env.MY_KV.get('key');
-	// ...
-}
+	const clientId = env.GOOGLE_ADS_CLIENT_ID;
+	const clientSecret = env.GOOGLE_ADS_CLIENT_SECRET;
+	const refreshToken = env.GOOGLE_ADS_REFRESH_TOKEN;
+	const developerToken = env.GOOGLE_ADS_DEVELOPER_TOKEN;
+	const loginCustomerId = env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
 
-// D1 Database (requires binding in wrangler.jsonc)
-handler: async (args, env) => {
-	const result = await env.DB.prepare('SELECT * FROM users').all();
-	// ...
-}
-
-// R2 Storage (requires binding in wrangler.jsonc)
-handler: async (args, env) => {
-	await env.MY_BUCKET.put('file.txt', 'content');
-	// ...
-}
+	// Use credentials to authenticate with Google Ads API
+};
 ```
 
-To use these features, update your `wrangler.jsonc` with the appropriate bindings.
+## Google Ads API Setup
+
+### Getting a Developer Token
+
+1. Sign in to your Google Ads account
+2. Go to Tools & Settings → API Center
+3. Apply for a developer token (approval may take 24-48 hours)
+
+### Creating OAuth2 Credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google Ads API
+4. Create OAuth2 credentials (Desktop app type)
+5. Download the credentials JSON file
+
+### Generating a Refresh Token
+
+Use the [Google Ads API authentication example](https://github.com/googleads/google-ads-python/blob/main/examples/authentication/authenticate_in_desktop_application.py) or similar tool to generate a refresh token.
 
 ## Advanced Configuration
-
-### Environment Variables
-
-Add secrets for API keys and sensitive data:
-
-```bash
-# Using Wrangler CLI
-wrangler secret put API_KEY
-
-# Or in wrangler.jsonc for non-sensitive vars
-{
-	"vars": {
-		"ENVIRONMENT": "production"
-	}
-}
-```
-
-Access in your code:
-```typescript
-handler: async (args, env) => {
-	const apiKey = env.API_KEY;
-	// ...
-}
-```
 
 ### CORS Configuration
 
@@ -293,6 +282,7 @@ const CONFIG = {
 ## Testing
 
 Run tests:
+
 ```bash
 npm test
 ```
@@ -313,37 +303,40 @@ The template includes Vitest with Cloudflare Workers test environment.
 - Verify firewall isn't blocking SSE connections
 - Test with `curl -N http://localhost:8787/sse` to see raw SSE stream
 
+### Google Ads API errors
+
+- Verify your developer token is approved and active
+- Check that OAuth2 credentials are correct
+- Ensure refresh token hasn't expired
+- Verify customer ID is correct and accessible
+
 ### Deployment fails
 
 - Ensure you're logged in to Cloudflare: `wrangler login`
 - Check that worker name in wrangler.jsonc is unique
 - Verify your Cloudflare account has Workers enabled
+- Ensure all required secrets are set: `wrangler secret list`
 
 ## Resources
 
 - [MCP Protocol Documentation](https://modelcontextprotocol.io/)
+- [Google Ads API Documentation](https://developers.google.com/google-ads/api/docs/start)
+- [Google Ads API Authentication](https://developers.google.com/google-ads/api/docs/oauth/overview)
 - [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
-- [TypingMind MCP Guide](https://docs.typingmind.com/)
 - [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
-
-## License
-
-MIT
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.
+We welcome contributions! Please see our CONTRIBUTING.md guide for details.
 
-## Support
+## License
 
-If you encounter issues:
-1. Check the Troubleshooting section above
-2. Review Cloudflare Workers logs: `wrangler tail`
-3. Open an issue on GitHub with:
-   - Your wrangler.jsonc (remove sensitive data)
-   - Error messages from logs
-   - Steps to reproduce
+Google Ads MCP Server is an open-source project licensed under the APACHE-2.0 License.
+
+## Contact
+
+If you have any questions, suggestions, or feedback, please feel free to open an issue.
 
 ---
 
-Built with the Model Context Protocol (MCP) for TypingMind and other MCP clients.
+Built with the Model Context Protocol (MCP) for Google Ads API integration.
