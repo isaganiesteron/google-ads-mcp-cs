@@ -6,6 +6,7 @@ declare namespace Cloudflare {
 		mainModule: typeof import('./src/index');
 	}
 	interface Env {
+		API_KEY?: string;
 		GOOGLE_ADS_DEVELOPER_TOKEN: string;
 		GOOGLE_ADS_CLIENT_ID: string;
 		GOOGLE_ADS_CLIENT_SECRET: string;
@@ -22,6 +23,7 @@ declare namespace NodeJS {
 		extends StringifyValues<
 			Pick<
 				Cloudflare.Env,
+				| 'API_KEY'
 				| 'GOOGLE_ADS_DEVELOPER_TOKEN'
 				| 'GOOGLE_ADS_CLIENT_ID'
 				| 'GOOGLE_ADS_CLIENT_SECRET'

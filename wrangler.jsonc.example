@@ -30,7 +30,8 @@
 	 */
 	"vars": {
 		"VAR1": "var_1_here",
-		"VAR2": "var_2_here"
+		"VAR2": "var_2_here",
+		"API_KEY": "your_api_key_here"
 	}
 	/**
 	 * Static Assets

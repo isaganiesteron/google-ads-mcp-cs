@@ -405,6 +405,30 @@ interface Session {
 // Store active sessions
 const sessions = new Map<string, Session>();
 
+/**
+ * Validate API key from request headers
+ * Supports both X-API-Key header and Authorization Bearer token
+ * Returns null if valid, error message string if invalid
+ */
+function validateApiKey(request: Request, env: Env): string | null {
+	// Skip validation if API key is not configured
+	if (!env.API_KEY || env.API_KEY.trim() === '') {
+		return null;
+	}
+
+	const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '').trim();
+
+	if (!apiKey) {
+		return 'API key is required. Please provide X-API-Key header or Authorization Bearer token.';
+	}
+
+	if (apiKey !== env.API_KEY) {
+		return 'Invalid API key.';
+	}
+
+	return null;
+}
+
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
@@ -413,7 +437,7 @@ export default {
 		const corsHeaders = {
 			'Access-Control-Allow-Origin': '*', // Change to specific domain if needed
 			'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-			'Access-Control-Allow-Headers': 'Content-Type, Accept',
+			'Access-Control-Allow-Headers': 'Content-Type, Accept, X-API-Key, Authorization',
 		};
 
 		console.log(`${request.method} ${url.pathname}`);
@@ -423,7 +447,7 @@ export default {
 			return new Response(null, { headers: corsHeaders });
 		}
 
-		// Health check endpoint
+		// Health check endpoint (no API key required)
 		if (url.pathname === '/' || url.pathname === '') {
 			return new Response(
 				JSON.stringify({
@@ -435,6 +459,24 @@ export default {
 					},
 				}),
 				{
+					headers: {
+						'Content-Type': 'application/json',
+						...corsHeaders,
+					},
+				}
+			);
+		}
+
+		// Validate API key for protected endpoints (exclude health check)
+		const apiKeyError = validateApiKey(request, env);
+		if (apiKeyError) {
+			return new Response(
+				JSON.stringify({
+					error: 'Unauthorized',
+					message: apiKeyError,
+				}),
+				{
+					status: 401,
 					headers: {
 						'Content-Type': 'application/json',
 						...corsHeaders,
