@@ -2,6 +2,8 @@
 
 The Google Ads MCP Server is an implementation of the Model Context Protocol (MCP) that enables Large Language Models (LLMs) to interact directly with the Google Ads API. This implementation runs on Cloudflare Workers, providing a serverless, globally distributed MCP server.
 
+> **Note**: This project was developed by [ContractorScale](https://contractorscale.com). The "cs" suffix in the project name refers to ContractorScale.
+
 **This is not an officially supported Google product.**
 
 ## Disclaimer

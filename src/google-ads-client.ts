@@ -126,6 +126,48 @@ async function executeGaqlQueryRest(
 
 	if (!response.ok) {
 		const errorText = await response.text();
+
+		// Try to parse the error response for better error messages
+		try {
+			const errorJson = JSON.parse(errorText);
+			const errorDetails = errorJson?.error?.details?.[0];
+			const errors = errorDetails?.errors || [];
+
+			// Get the primary error message from the API
+			const primaryErrorMessage = errorJson?.error?.message || 'Unknown error';
+
+			// Check for manager account metrics error
+			const managerMetricsError = errors.find((err: any) => err?.errorCode?.queryError === 'REQUESTED_METRICS_FOR_MANAGER');
+
+			if (managerMetricsError) {
+				// Use the actual error message from the API, with helpful context
+				const apiMessage = managerMetricsError?.message || primaryErrorMessage;
+				throw new Error(
+					`${apiMessage} ` +
+						`(Customer ID: ${customerId}). ` +
+						`Tip: Use 'list_accessible_accounts' to find client account IDs, then query metrics from a client account instead.`
+				);
+			}
+
+			// Check for other query errors - use the actual error message from the API
+			const queryError = errors.find((err: any) => err?.errorCode?.queryError);
+			if (queryError) {
+				const errorMsg = queryError?.message || primaryErrorMessage;
+				throw new Error(errorMsg);
+			}
+
+			// If no specific error found but we have a general error message, use it
+			if (primaryErrorMessage && primaryErrorMessage !== 'Unknown error') {
+				throw new Error(primaryErrorMessage);
+			}
+		} catch (parseError) {
+			// If JSON parsing fails or the thrown error was from our logic above, re-throw it
+			// Otherwise, fall back to original error handling
+			if (parseError instanceof Error && parseError.message !== errorText.substring(0, 500)) {
+				throw parseError;
+			}
+		}
+
 		throw new Error(`Failed to execute GAQL query: ${response.status} - ${errorText.substring(0, 500)}`);
 	}
 

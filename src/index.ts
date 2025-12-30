@@ -55,6 +55,9 @@ const TOOLS: Tool[] = [
 			required: [],
 		},
 		handler: async (args: Record<string, unknown>, env: Env): Promise<ToolResult> => {
+			console.log('[list_accessible_accounts] Starting handler execution');
+			console.log('[list_accessible_accounts] Args:', JSON.stringify(args));
+
 			try {
 				const credentials = {
 					client_id: env.GOOGLE_ADS_CLIENT_ID,
@@ -64,12 +67,74 @@ const TOOLS: Tool[] = [
 					login_customer_id: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
 				};
 
+				console.log('[list_accessible_accounts] Credentials check:', {
+					has_client_id: !!credentials.client_id,
+					has_client_secret: !!credentials.client_secret,
+					has_refresh_token: !!credentials.refresh_token,
+					has_developer_token: !!credentials.developer_token,
+					has_login_customer_id: !!credentials.login_customer_id,
+				});
+
 				// Validate required credentials
 				if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token || !credentials.developer_token) {
-					throw new Error('Missing required Google Ads credentials. Please check your environment variables.');
+					const missing = [];
+					if (!credentials.client_id) missing.push('GOOGLE_ADS_CLIENT_ID');
+					if (!credentials.client_secret) missing.push('GOOGLE_ADS_CLIENT_SECRET');
+					if (!credentials.refresh_token) missing.push('GOOGLE_ADS_REFRESH_TOKEN');
+					if (!credentials.developer_token) missing.push('GOOGLE_ADS_DEVELOPER_TOKEN');
+
+					console.error('[list_accessible_accounts] Missing credentials:', missing);
+
+					// Return error as ToolResult instead of throwing
+					return {
+						content: [
+							{
+								type: 'text',
+								text: JSON.stringify(
+									{
+										error: true,
+										message: `Missing required Google Ads credentials: ${missing.join(', ')}. Please check your environment variables.`,
+									},
+									null,
+									2
+								),
+							},
+						],
+					};
 				}
 
+				console.log('[list_accessible_accounts] Calling listAccessibleCustomers...');
 				const result = await listAccessibleCustomers(credentials);
+				console.log('[list_accessible_accounts] Received result:', {
+					has_result: !!result,
+					has_formatted: !!result?.formatted,
+					has_accounts: !!result?.accounts,
+					accounts_count: result?.accounts?.length || 0,
+					has_resourceNames: !!result?.resourceNames,
+					resourceNames_count: result?.resourceNames?.length || 0,
+				});
+
+				// Ensure result is valid
+				if (!result) {
+					console.error('[list_accessible_accounts] Result is null or undefined');
+
+					// Return error as ToolResult instead of throwing
+					return {
+						content: [
+							{
+								type: 'text',
+								text: JSON.stringify(
+									{
+										error: true,
+										message: 'Failed to retrieve accounts: No data returned from API',
+									},
+									null,
+									2
+								),
+							},
+						],
+					};
+				}
 
 				// Return formatted text for human readability and AI understanding
 				// Include both formatted text and structured data
@@ -81,7 +146,9 @@ const TOOLS: Tool[] = [
 					  )}\n\`\`\``
 					: JSON.stringify(result, null, 2);
 
-				return {
+				console.log('[list_accessible_accounts] Response text length:', responseText.length);
+
+				const toolResult: ToolResult = {
 					content: [
 						{
 							type: 'text',
@@ -89,9 +156,41 @@ const TOOLS: Tool[] = [
 						},
 					],
 				};
+
+				console.log('[list_accessible_accounts] Returning tool result:', {
+					has_content: !!toolResult.content,
+					content_length: toolResult.content?.length || 0,
+					first_content_type: toolResult.content?.[0]?.type,
+					first_content_text_length: toolResult.content?.[0]?.text?.length || 0,
+				});
+
+				return toolResult;
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
-				throw new Error(`Failed to list accessible accounts: ${errorMessage}`);
+				const errorStack = error instanceof Error ? error.stack : undefined;
+
+				console.error('[list_accessible_accounts] Error occurred:', {
+					message: errorMessage,
+					stack: errorStack,
+					error_type: error?.constructor?.name || typeof error,
+				});
+
+				// Return error as ToolResult instead of throwing
+				return {
+					content: [
+						{
+							type: 'text',
+							text: JSON.stringify(
+								{
+									error: true,
+									message: `Failed to list accessible accounts: ${errorMessage}`,
+								},
+								null,
+								2
+							),
+						},
+					],
+				};
 			}
 		},
 	},
@@ -123,7 +222,22 @@ const TOOLS: Tool[] = [
 				const login_customer_id = args.login_customer_id as string | undefined;
 
 				if (!query || !customer_id) {
-					throw new Error('query and customer_id are required');
+					// Return error as ToolResult instead of throwing
+					return {
+						content: [
+							{
+								type: 'text',
+								text: JSON.stringify(
+									{
+										error: true,
+										message: 'query and customer_id are required',
+									},
+									null,
+									2
+								),
+							},
+						],
+					};
 				}
 
 				const credentials = {
@@ -131,12 +245,27 @@ const TOOLS: Tool[] = [
 					client_secret: env.GOOGLE_ADS_CLIENT_SECRET,
 					refresh_token: env.GOOGLE_ADS_REFRESH_TOKEN,
 					developer_token: env.GOOGLE_ADS_DEVELOPER_TOKEN,
-					login_customer_id: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+					login_customer_id: login_customer_id || env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
 				};
 
 				// Validate required credentials
 				if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token || !credentials.developer_token) {
-					throw new Error('Missing required Google Ads credentials. Please check your environment variables.');
+					// Return error as ToolResult instead of throwing
+					return {
+						content: [
+							{
+								type: 'text',
+								text: JSON.stringify(
+									{
+										error: true,
+										message: 'Missing required Google Ads credentials. Please check your environment variables.',
+									},
+									null,
+									2
+								),
+							},
+						],
+					};
 				}
 
 				const result = await executeGaqlQuery(credentials, query, customer_id, login_customer_id);
@@ -150,7 +279,24 @@ const TOOLS: Tool[] = [
 				};
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
-				throw new Error(`Failed to execute GAQL query: ${errorMessage}`);
+
+				// Return error as ToolResult instead of throwing
+				// The error message from executeGaqlQuery already contains helpful context from the API
+				return {
+					content: [
+						{
+							type: 'text',
+							text: JSON.stringify(
+								{
+									error: true,
+									message: `Failed to execute GAQL query: ${errorMessage}`,
+								},
+								null,
+								2
+							),
+						},
+					],
+				};
 			}
 		},
 	},
@@ -175,7 +321,23 @@ const TOOLS: Tool[] = [
 				};
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
-				throw new Error(`Failed to get GAQL documentation: ${errorMessage}`);
+
+				// Return error as ToolResult instead of throwing
+				return {
+					content: [
+						{
+							type: 'text',
+							text: JSON.stringify(
+								{
+									error: true,
+									message: `Failed to get GAQL documentation: ${errorMessage}`,
+								},
+								null,
+								2
+							),
+						},
+					],
+				};
 			}
 		},
 	},
@@ -206,7 +368,23 @@ const TOOLS: Tool[] = [
 				};
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
-				throw new Error(`Failed to get reporting view documentation: ${errorMessage}`);
+
+				// Return error as ToolResult instead of throwing
+				return {
+					content: [
+						{
+							type: 'text',
+							text: JSON.stringify(
+								{
+									error: true,
+									message: `Failed to get reporting view documentation: ${errorMessage}`,
+								},
+								null,
+								2
+							),
+						},
+					],
+				};
 			}
 		},
 	},
@@ -318,7 +496,10 @@ export default {
 		// Messages endpoint with session
 		if (url.pathname === '/sse/message' && request.method === 'POST') {
 			const sessionId = url.searchParams.get('sessionId');
-			console.log('Received POST to /sse/message with sessionId:', sessionId);
+			console.log('[fetch] Received POST to /sse/message:', {
+				sessionId: sessionId,
+				has_session: sessions.has(sessionId || ''),
+			});
 
 			const session = sessions.get(sessionId || '') ?? null;
 			return handleMessage(request, corsHeaders, session, env);
@@ -395,19 +576,65 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 		else if (message.method === 'tools/call') {
 			const { name, arguments: args } = message.params;
 
+			console.log('[handleMessage] tools/call received:', {
+				tool_name: name,
+				args: JSON.stringify(args),
+				message_id: message.id,
+			});
+
 			// Find the tool by name
 			const tool = TOOLS.find((t) => t.name === name);
 
+			console.log('[handleMessage] Tool lookup:', {
+				tool_found: !!tool,
+				available_tools: TOOLS.map((t) => t.name),
+			});
+
 			if (tool) {
 				try {
+					console.log('[handleMessage] Executing tool handler...');
 					const result = await tool.handler(args, env);
+
+					console.log('[handleMessage] Tool handler completed:', {
+						has_result: !!result,
+						has_content: !!result?.content,
+						content_is_array: Array.isArray(result?.content),
+						content_length: result?.content?.length || 0,
+					});
+
+					// Validate result structure
+					if (!result) {
+						console.error('[handleMessage] Tool handler returned null/undefined');
+						throw new Error('Tool handler returned invalid result: null or undefined');
+					}
+
+					if (!result.content || !Array.isArray(result.content)) {
+						console.error('[handleMessage] Tool handler returned invalid structure:', {
+							result_type: typeof result,
+							result_keys: Object.keys(result || {}),
+							has_content: !!result?.content,
+							content_type: typeof result?.content,
+						});
+						throw new Error(`Tool handler returned invalid result structure. Expected content array, got: ${JSON.stringify(result)}`);
+					}
+
 					response = {
 						jsonrpc: '2.0',
 						id: message.id,
 						result,
 					};
+
+					console.log('[handleMessage] Response prepared successfully');
 				} catch (toolError: unknown) {
 					const errorMessage = toolError instanceof Error ? toolError.message : 'Tool execution failed';
+					const errorStack = toolError instanceof Error ? toolError.stack : undefined;
+
+					console.error('[handleMessage] Tool execution error:', {
+						message: errorMessage,
+						stack: errorStack,
+						error_type: toolError?.constructor?.name || typeof toolError,
+					});
+
 					response = {
 						jsonrpc: '2.0',
 						id: message.id,
@@ -418,6 +645,7 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 					};
 				}
 			} else {
+				console.warn('[handleMessage] Unknown tool requested:', name);
 				response = {
 					jsonrpc: '2.0',
 					id: message.id,
@@ -446,7 +674,17 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 			};
 		}
 
-		console.log('Sending response:', JSON.stringify(response));
+		console.log('[handleMessage] Sending response:', {
+			jsonrpc: (response as any).jsonrpc,
+			id: (response as any).id,
+			has_result: !!(response as any).result,
+			has_error: !!(response as any).error,
+			error_code: (response as any).error?.code,
+			error_message: (response as any).error?.message?.substring(0, 100),
+			result_has_content: !!(response as any).result?.content,
+			result_content_length: (response as any).result?.content?.length || 0,
+			result_preview: (response as any).result ? JSON.stringify((response as any).result).substring(0, 300) : undefined,
+		});
 
 		// If we have a session, send via SSE
 		if (session && response) {
