@@ -14,7 +14,9 @@ Copyright Google LLC. Supported by Google LLC and/or its affiliate(s). This solu
 
 - **Google Ads API Integration**: Direct access to Google Ads API functionality
 - **Cloudflare Workers**: Serverless deployment with global edge network
-- **SSE Support**: Real-time communication with MCP clients via Server-Sent Events
+- **SSE Support**: Real-time communication with MCP clients via Server-Sent Events (e.g. TypingMind)
+- **Streamable HTTP (MCP)**: Direct `POST /mcp` endpoint for MCP clients that use HTTP transport
+- **Production Logging**: Structured `[fetch]` / `[handleMessage]` logs for `wrangler tail` debugging
 - **TypeScript**: Full type safety and excellent developer experience
 - **Modular Tools**: Easy-to-extend tool system for Google Ads operations
 - **Production Ready**: Includes error handling, CORS, health checks, and session management
@@ -80,7 +82,7 @@ const CONFIG = {
 	serverName: 'google-ads-mcp',
 	serverVersion: '1.0.0',
 	serverDescription: 'Google Ads MCP Server',
-	protocolVersion: '2024-11-05',
+	protocolVersion: '2025-03-26', // previously '2024-11-05'
 	keepAliveInterval: 30000,
 } as const;
 ```
@@ -131,10 +133,28 @@ After deployment, Cloudflare will provide your worker URL (e.g., `https://google
 
 ### Other MCP Clients
 
-The server supports standard MCP protocol over SSE. Configure your MCP client to connect to:
+The server supports the standard MCP protocol over two transports:
 
-- **SSE Endpoint**: `https://your-worker-url.workers.dev/sse`
-- **Direct HTTP**: `https://your-worker-url.workers.dev/sse` (POST)
+**SSE (Server-Sent Events)**
+
+- **Connect**: `GET https://your-worker-url.workers.dev/sse`
+- **Send messages**: `POST https://your-worker-url.workers.dev/sse/message?sessionId={id}`
+- **Direct HTTP fallback**: `POST https://your-worker-url.workers.dev/sse`
+
+**Streamable HTTP (MCP)**
+
+- **Endpoint**: `POST https://your-worker-url.workers.dev/mcp`
+- **Headers**: `Content-Type: application/json`, plus `X-API-Key` or `Authorization: Bearer <token>` if `API_KEY` is configured
+- **Body**: JSON-RPC 2.0 MCP messages (e.g. `initialize`, `tools/list`, `tools/call`)
+
+Example `initialize` request:
+
+```bash
+curl -X POST https://your-worker-url.workers.dev/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
+```
 
 ## Example Usage
 
@@ -161,10 +181,24 @@ Once connected, you can ask questions like:
 
 ## API Endpoints
 
-- `GET /` - Health check endpoint
+- `GET /` - Health check endpoint (returns available endpoints, including `/sse` and `/mcp`)
 - `GET /sse` - SSE endpoint for establishing connection
 - `POST /sse` - Direct HTTP endpoint (for clients that don't use SSE)
 - `POST /sse/message?sessionId={id}` - Message endpoint for active SSE sessions
+- `POST /mcp` - Streamable HTTP MCP endpoint (JSON-RPC over HTTP; same message handler as `/sse`)
+
+Protected endpoints (`/sse`, `/sse/message`, `/mcp`) require an API key when the `API_KEY` secret is set. Use the `X-API-Key` header or `Authorization: Bearer <token>`.
+
+## Production Debugging
+
+Use `wrangler tail` to stream logs from the deployed worker. Logs are prefixed for easy filtering:
+
+- `[fetch]` — incoming request method/pathname, matched route, API key failures, 404s
+- `[handleMessage]` — parsed MCP method (`initialize`, `tools/list`, `tools/call`, etc.), tool name on `tools/call`, full error messages with stack traces, and the JSON response sent back
+
+```bash
+wrangler tail
+```
 
 ## Tool Development Guide
 
@@ -304,6 +338,13 @@ The template includes Vitest with Cloudflare Workers test environment.
 - Check CORS headers if connecting from a web app
 - Verify firewall isn't blocking SSE connections
 - Test with `curl -N http://localhost:8787/sse` to see raw SSE stream
+
+### MCP HTTP (`/mcp`) connection issues
+
+- Confirm the client is using `POST /mcp` with `Content-Type: application/json`
+- Verify the API key header if `API_KEY` is configured
+- Check that the client sends MCP protocol version `2025-03-26` in `initialize`
+- Use `wrangler tail` and filter for `[handleMessage]` to see parsed methods and responses
 
 ### Google Ads API errors
 

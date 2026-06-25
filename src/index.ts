@@ -11,7 +11,7 @@ const CONFIG = {
 	serverName: 'google-ads-mcp',
 	serverVersion: '1.0.0',
 	serverDescription: 'Google Ads MCP Server',
-	protocolVersion: '2024-11-05',
+	protocolVersion: '2025-03-26', // previously '2024-11-05'
 	keepAliveInterval: 30000, // 30 seconds
 } as const;
 
@@ -440,24 +440,29 @@ export default {
 			'Access-Control-Allow-Headers': 'Content-Type, Accept, X-API-Key, Authorization',
 		};
 
-		console.log(`${request.method} ${url.pathname}`);
+		console.log(`[fetch] Incoming request: ${request.method} ${url.pathname}`);
 
 		// Handle CORS preflight
 		if (request.method === 'OPTIONS') {
+			console.log('[fetch] Matched endpoint: OPTIONS (CORS preflight)');
 			return new Response(null, { headers: corsHeaders });
 		}
 
 		// Health check endpoint (no API key required)
 		if (url.pathname === '/' || url.pathname === '') {
+			console.log('[fetch] Matched endpoint: GET / (health check)');
+			const healthResponse = {
+				name: CONFIG.serverDescription,
+				version: CONFIG.serverVersion,
+				status: 'running',
+				endpoints: {
+					sse: '/sse',
+					mcp: '/mcp',
+				},
+			};
+			console.log('[fetch] Health check response:', JSON.stringify(healthResponse));
 			return new Response(
-				JSON.stringify({
-					name: CONFIG.serverDescription,
-					version: CONFIG.serverVersion,
-					status: 'running',
-					endpoints: {
-						sse: '/sse',
-					},
-				}),
+				JSON.stringify(healthResponse),
 				{
 					headers: {
 						'Content-Type': 'application/json',
@@ -470,6 +475,7 @@ export default {
 		// Validate API key for protected endpoints (exclude health check)
 		const apiKeyError = validateApiKey(request, env);
 		if (apiKeyError) {
+			console.error('[fetch] API key validation failed:', apiKeyError);
 			return new Response(
 				JSON.stringify({
 					error: 'Unauthorized',
@@ -487,6 +493,7 @@ export default {
 
 		// SSE endpoint - GET only
 		if (url.pathname === '/sse' && request.method === 'GET') {
+			console.log('[fetch] Matched endpoint: GET /sse');
 			const { readable, writable } = new TransformStream();
 			const writer = writable.getWriter();
 			const encoder = new TextEncoder();
@@ -513,7 +520,9 @@ export default {
 						}
 					}, CONFIG.keepAliveInterval);
 				} catch (error) {
-					console.error('SSE error:', error);
+					const errorMessage = error instanceof Error ? error.message : String(error);
+					const errorStack = error instanceof Error ? error.stack : undefined;
+					console.error('[fetch] SSE error:', { message: errorMessage, stack: errorStack });
 					sessions.delete(sessionId);
 				}
 			})();
@@ -530,23 +539,31 @@ export default {
 
 		// Handle POST to /sse (some clients do this for direct HTTP)
 		if (url.pathname === '/sse' && request.method === 'POST') {
-			console.log('Received POST to /sse - redirecting to message handler');
+			console.log('[fetch] Matched endpoint: POST /sse');
 			// Treat this as a direct message without session
-			return handleMessage(request, corsHeaders, null, env);
+			return handleMessage(request, corsHeaders, null, env, 'POST /sse');
 		}
 
 		// Messages endpoint with session
 		if (url.pathname === '/sse/message' && request.method === 'POST') {
+			console.log('[fetch] Matched endpoint: POST /sse/message');
 			const sessionId = url.searchParams.get('sessionId');
-			console.log('[fetch] Received POST to /sse/message:', {
+			console.log('[fetch] SSE message session:', {
 				sessionId: sessionId,
 				has_session: sessions.has(sessionId || ''),
 			});
 
 			const session = sessions.get(sessionId || '') ?? null;
-			return handleMessage(request, corsHeaders, session, env);
+			return handleMessage(request, corsHeaders, session, env, 'POST /sse/message');
 		}
 
+		// MCP HTTP endpoint - POST only (streamable HTTP transport)
+		if (url.pathname === '/mcp' && request.method === 'POST') {
+			console.log('[fetch] Matched endpoint: POST /mcp');
+			return handleMessage(request, corsHeaders, null, env, 'POST /mcp');
+		}
+
+		console.log(`[fetch] No endpoint matched for ${request.method} ${url.pathname}, returning 404`);
 		return new Response('Not Found', {
 			status: 404,
 			headers: corsHeaders,
@@ -555,16 +572,25 @@ export default {
 };
 
 // Centralized message handler
-async function handleMessage(request: Request, corsHeaders: Record<string, string>, session: Session | null, env: Env) {
+async function handleMessage(
+	request: Request,
+	corsHeaders: Record<string, string>,
+	session: Session | null,
+	env: Env,
+	endpoint = 'unknown'
+) {
 	try {
+		console.log(`[handleMessage] Processing request from endpoint: ${endpoint}`);
 		const body = await request.text();
-		console.log('Received body:', body);
+		console.log('[handleMessage] Received body:', body);
 
 		let message;
 		try {
 			message = JSON.parse(body);
 		} catch (parseError) {
-			console.error('JSON parse error:', parseError);
+			const parseMessage = parseError instanceof Error ? parseError.message : String(parseError);
+			const parseStack = parseError instanceof Error ? parseError.stack : undefined;
+			console.error('[handleMessage] JSON parse error:', { message: parseMessage, stack: parseStack });
 			const errorResponse = {
 				jsonrpc: '2.0',
 				error: {
@@ -572,6 +598,7 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 					message: 'Parse error',
 				},
 			};
+			console.log('[handleMessage] Sending parse error response:', JSON.stringify(errorResponse));
 			return new Response(JSON.stringify(errorResponse), {
 				status: 400,
 				headers: {
@@ -581,12 +608,17 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 			});
 		}
 
-		console.log('Parsed message:', JSON.stringify(message));
+		console.log('[handleMessage] Parsed MCP method:', message.method, {
+			endpoint,
+			message_id: message.id,
+			has_params: !!message.params,
+		});
 
 		let response: Record<string, unknown> | null = null;
 
 		// Handle initialize
 		if (message.method === 'initialize') {
+			console.log('[handleMessage] Handling initialize');
 			response = {
 				jsonrpc: '2.0',
 				id: message.id,
@@ -602,6 +634,7 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 		}
 		// Handle tools/list
 		else if (message.method === 'tools/list') {
+			console.log('[handleMessage] Handling tools/list');
 			response = {
 				jsonrpc: '2.0',
 				id: message.id,
@@ -618,10 +651,11 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 		else if (message.method === 'tools/call') {
 			const { name, arguments: args } = message.params;
 
-			console.log('[handleMessage] tools/call received:', {
+			console.log('[handleMessage] Handling tools/call:', {
 				tool_name: name,
 				args: JSON.stringify(args),
 				message_id: message.id,
+				endpoint,
 			});
 
 			// Find the tool by name
@@ -700,12 +734,13 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 		}
 		// Handle notifications/initialized
 		else if (message.method === 'notifications/initialized') {
-			console.log('Received initialized notification');
+			console.log('[handleMessage] Handling notifications/initialized (no response body)');
 			return new Response(null, {
 				status: 204,
 				headers: corsHeaders,
 			});
 		} else {
+			console.warn('[handleMessage] Unknown MCP method:', message.method);
 			response = {
 				jsonrpc: '2.0',
 				id: message.id || null,
@@ -716,30 +751,28 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 			};
 		}
 
+		const responseBody = JSON.stringify(response);
 		console.log('[handleMessage] Sending response:', {
-			jsonrpc: (response as any).jsonrpc,
-			id: (response as any).id,
-			has_result: !!(response as any).result,
-			has_error: !!(response as any).error,
-			error_code: (response as any).error?.code,
-			error_message: (response as any).error?.message?.substring(0, 100),
-			result_has_content: !!(response as any).result?.content,
-			result_content_length: (response as any).result?.content?.length || 0,
-			result_preview: (response as any).result ? JSON.stringify((response as any).result).substring(0, 300) : undefined,
+			endpoint,
+			mcp_method: message.method,
+			response: responseBody,
 		});
 
 		// If we have a session, send via SSE
 		if (session && response) {
 			try {
-				await session.writer.write(session.encoder.encode(`data: ${JSON.stringify(response)}\n\n`));
+				console.log('[handleMessage] Writing response to SSE session');
+				await session.writer.write(session.encoder.encode(`data: ${responseBody}\n\n`));
 			} catch (sseError) {
-				console.error('SSE write error:', sseError);
+				const errorMessage = sseError instanceof Error ? sseError.message : String(sseError);
+				const errorStack = sseError instanceof Error ? sseError.stack : undefined;
+				console.error('[handleMessage] SSE write error:', { message: errorMessage, stack: errorStack });
 			}
 		}
 
 		// Always return response directly for HTTP
 		if (response) {
-			return new Response(JSON.stringify(response), {
+			return new Response(responseBody, {
 				status: 200,
 				headers: {
 					'Content-Type': 'application/json',
@@ -753,14 +786,21 @@ async function handleMessage(request: Request, corsHeaders: Record<string, strin
 			headers: corsHeaders,
 		});
 	} catch (error: unknown) {
-		console.error('Message handling error:', error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
+		console.error('[handleMessage] Message handling error:', {
+			endpoint,
+			message: errorMessage,
+			stack: errorStack,
+		});
 		const errorResponse = {
 			jsonrpc: '2.0',
 			error: {
 				code: -32603,
-				message: error instanceof Error ? error.message : 'Internal error',
+				message: errorMessage,
 			},
 		};
+		console.log('[handleMessage] Sending error response:', JSON.stringify(errorResponse));
 		return new Response(JSON.stringify(errorResponse), {
 			status: 500,
 			headers: {
