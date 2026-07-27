@@ -350,6 +350,156 @@ export function getGaqlDocumentation(): string {
 }
 
 /**
+ * Parse and normalize Google Ads error from a failed API response
+ */
+async function parseApiError(response: Response, context: string): Promise<Error> {
+	const errorText = await response.text();
+	try {
+		const errorJson = JSON.parse(errorText);
+		const message = errorJson?.error?.message || 'Unknown error';
+		return new Error(`${context}: ${message}`);
+	} catch {
+		return new Error(`${context}: ${response.status} - ${errorText.substring(0, 500)}`);
+	}
+}
+
+/**
+ * Execute a Google Ads mutate operation against a single resource type
+ */
+export async function executeGoogleAdsMutate(
+	credentials: GoogleAdsCredentials,
+	customerId: string,
+	resource: string,
+	operations: any[],
+	loginCustomerId?: string,
+	partialFailure = true,
+	validateOnly = false
+): Promise<any> {
+	const customerIdClean = customerId.replace(/-/g, '');
+	const url = `${GOOGLE_ADS_API_BASE}/customers/${customerIdClean}/${resource}:mutate`;
+	const headers = await getApiHeaders(credentials, loginCustomerId);
+
+	const response = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ operations, partialFailure, validateOnly }),
+	});
+
+	if (!response.ok) {
+		throw await parseApiError(response, `Mutate ${resource} failed`);
+	}
+
+	return response.json();
+}
+
+/**
+ * Execute the unified GoogleAdsService.mutate for atomic multi-resource operations
+ */
+export async function executeUnifiedMutate(
+	credentials: GoogleAdsCredentials,
+	customerId: string,
+	mutateOperations: any[],
+	loginCustomerId?: string,
+	partialFailure = true,
+	validateOnly = false
+): Promise<any> {
+	const customerIdClean = customerId.replace(/-/g, '');
+	const url = `${GOOGLE_ADS_API_BASE}/customers/${customerIdClean}/googleAds:mutate`;
+	const headers = await getApiHeaders(credentials, loginCustomerId);
+
+	const response = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ mutate_operations: mutateOperations, partial_failure: partialFailure, validate_only: validateOnly }),
+	});
+
+	if (!response.ok) {
+		throw await parseApiError(response, 'Unified mutate failed');
+	}
+
+	return response.json();
+}
+
+/**
+ * Upload click conversions (offline conversion import)
+ */
+export async function uploadClickConversions(
+	credentials: GoogleAdsCredentials,
+	customerId: string,
+	conversions: any[],
+	loginCustomerId?: string,
+	partialFailure = true
+): Promise<any> {
+	const customerIdClean = customerId.replace(/-/g, '');
+	const url = `${GOOGLE_ADS_API_BASE}/customers/${customerIdClean}:uploadClickConversions`;
+	const headers = await getApiHeaders(credentials, loginCustomerId);
+
+	const response = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ conversions, partialFailure }),
+	});
+
+	if (!response.ok) {
+		throw await parseApiError(response, 'Upload click conversions failed');
+	}
+
+	return response.json();
+}
+
+/**
+ * Apply Google Ads recommendations
+ */
+export async function applyRecommendations(
+	credentials: GoogleAdsCredentials,
+	customerId: string,
+	operations: any[],
+	loginCustomerId?: string
+): Promise<any> {
+	const customerIdClean = customerId.replace(/-/g, '');
+	const url = `${GOOGLE_ADS_API_BASE}/customers/${customerIdClean}/recommendations:apply`;
+	const headers = await getApiHeaders(credentials, loginCustomerId);
+
+	const response = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ operations }),
+	});
+
+	if (!response.ok) {
+		throw await parseApiError(response, 'Apply recommendations failed');
+	}
+
+	return response.json();
+}
+
+/**
+ * Dismiss Google Ads recommendations
+ */
+export async function dismissRecommendations(
+	credentials: GoogleAdsCredentials,
+	customerId: string,
+	operations: any[],
+	loginCustomerId?: string
+): Promise<any> {
+	const customerIdClean = customerId.replace(/-/g, '');
+	const url = `${GOOGLE_ADS_API_BASE}/customers/${customerIdClean}/recommendations:dismiss`;
+	const headers = await getApiHeaders(credentials, loginCustomerId);
+
+	const response = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ operations }),
+	});
+
+	if (!response.ok) {
+		throw await parseApiError(response, 'Dismiss recommendations failed');
+	}
+
+	return response.json();
+}
+
+/**
  * Get reporting view documentation
  */
 export function getReportingViewDocumentation(view?: string): string {
