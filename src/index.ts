@@ -54,6 +54,17 @@ interface ToolResult {
 	}>;
 }
 
+// ─── Feature flags ─────────────────────────────────────────────────────────
+
+// Set to true once mutation logging (T-066) is implemented.
+const MUTATIONS_ENABLED = false;
+
+function mutationsDisabledResult(): ToolResult {
+	return errorResult(
+		'This tool is temporarily disabled. Mutation logging (T-066) must be implemented before writes are re-enabled.'
+	);
+}
+
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
 function getCredentials(env: Env, loginCustomerId?: string) {
@@ -102,6 +113,7 @@ async function handleMutate(
 	resource: string,
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
+	if (!MUTATIONS_ENABLED) return mutationsDisabledResult();
 	const customer_id = args.customer_id as string;
 	const login_customer_id = args.login_customer_id as string | undefined;
 	const partial_failure = args.partial_failure !== false;
@@ -785,6 +797,7 @@ const TOOLS: Tool[] = [
 			required: ['customer_id', 'conversions'],
 		},
 		handler: async (args, env): Promise<ToolResult> => {
+			if (!MUTATIONS_ENABLED) return mutationsDisabledResult();
 			const customer_id = args.customer_id as string;
 			const login_customer_id = args.login_customer_id as string | undefined;
 			const partial_failure = args.partial_failure !== false;
@@ -857,6 +870,7 @@ const TOOLS: Tool[] = [
 			required: ['customer_id', 'operations'],
 		},
 		handler: async (args, env): Promise<ToolResult> => {
+			if (!MUTATIONS_ENABLED) return mutationsDisabledResult();
 			const customer_id = args.customer_id as string;
 			const login_customer_id = args.login_customer_id as string | undefined;
 
@@ -899,6 +913,7 @@ const TOOLS: Tool[] = [
 			required: ['customer_id', 'operations'],
 		},
 		handler: async (args, env): Promise<ToolResult> => {
+			if (!MUTATIONS_ENABLED) return mutationsDisabledResult();
 			const customer_id = args.customer_id as string;
 			const login_customer_id = args.login_customer_id as string | undefined;
 
@@ -1018,6 +1033,7 @@ const TOOLS: Tool[] = [
 			required: ['customer_id', 'mutate_operations'],
 		},
 		handler: async (args, env): Promise<ToolResult> => {
+			if (!MUTATIONS_ENABLED) return mutationsDisabledResult();
 			const customer_id = args.customer_id as string;
 			const login_customer_id = args.login_customer_id as string | undefined;
 			const partial_failure = args.partial_failure !== false;
