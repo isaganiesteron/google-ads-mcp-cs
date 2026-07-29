@@ -58,8 +58,8 @@ interface ToolResult {
 
 // ─── Feature flags ─────────────────────────────────────────────────────────
 
-// Set to true once mutation logging (T-066) is implemented.
-const MUTATIONS_ENABLED = false;
+// Mutation logging (T-066) implemented and verified end-to-end 2026-07-29.
+const MUTATIONS_ENABLED = true;
 
 function mutationsDisabledResult(): ToolResult {
 	return errorResult(
