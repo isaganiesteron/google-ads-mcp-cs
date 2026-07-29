@@ -209,7 +209,9 @@ This Worker shares Google Ads OAuth credentials with the main `contractor-scale-
 
 ### Go-live gate
 
-All 19 mutating tools are gated behind a single flag, `MUTATIONS_ENABLED` (`src/index.ts`). While `false`, every mutating tool returns an error instead of touching the Google Ads API — no live mutations happen. Flip it to `true` only after verifying the logging path end-to-end (see "Testing" below); this is a manual, deliberate go-live step, not something toggled automatically.
+All 19 mutating tools are gated behind a single flag, `MUTATIONS_ENABLED` (`src/index.ts`). While `false`, every mutating tool returns an error instead of touching the Google Ads API. Flip it to `true` only after verifying the logging path end-to-end (see "Testing" below); this is a manual, deliberate go-live step, not something toggled automatically.
+
+**Status: live.** `MUTATIONS_ENABLED = true` as of 2026-07-29 — logging was verified end-to-end against a live account first (see "Testing" below), then the flag was flipped and redeployed. All 19 mutating tools are active in production.
 
 ### How it works
 
@@ -222,12 +224,24 @@ All 19 mutating tools are gated behind a single flag, `MUTATIONS_ENABLED` (`src/
 
 ### Testing before flipping `MUTATIONS_ENABLED`
 
-1. Set `GOOGLE_ADS_CHANGE_LOG_API_KEY` in `.dev.vars` (via Doppler `cs-shared`/`prd`, or ask a teammate).
+Use this process if the flag is ever turned back off (e.g. a future rework of `logChange()`) and needs re-verifying before going live again:
+
+1. Set `GOOGLE_ADS_CHANGE_LOG_API_KEY` in `.dev.vars` (via Doppler `cs-shared`/`prd`, or ask a teammate) — never commit `.dev.vars` itself, and avoid printing the real key value in shell output/logs you don't control (e.g. don't echo it into a command history or a session transcript you don't own).
 2. Temporarily flip `MUTATIONS_ENABLED = true` locally only — never commit that flip until logging is verified.
 3. Run `npm run dev` and exercise a representative tool through each path (e.g. `mutate_shared_sets` for the `handleMutate` choke point, plus each of the 4 custom handlers), preferring fully inert/reversible operations (e.g. an unlinked negative-keyword shared set or campaign budget, created then removed) if testing against a real client account rather than a dedicated sandbox.
 4. Confirm each call produced a matching row: `GET https://contractor-scale-api.onrender.com/api/google-ads-change-log?customerId=<id>` with a `DASHBOARD_API_KEY`.
 5. Confirm the non-blocking design holds: temporarily point `CHANGE_LOG_API_BASE_URL` at an unreachable host and re-run a mutation — the tool should still return its normal success result while `[change-log] write threw:` appears in the logs.
-6. Revert both temporary changes, commit, deploy, then flip `MUTATIONS_ENABLED = true` for real and deploy again.
+6. Delete any test rows created in step 3/4 from `google_ads_change_log` directly via Supabase — this Worker has no delete access to that table by design (see "Don't" note below).
+7. Revert both temporary changes, commit, deploy, then flip `MUTATIONS_ENABLED = true` for real and deploy again.
+
+This exact process was run against a live client account on 2026-07-29 (`mutate_shared_sets` and `mutate_resources` create+remove round-trips, plus the broken-endpoint negative-path check) before go-live.
+
+**If a real secret value is ever exposed** (e.g. pasted into a shared terminal, chat, or log you don't control), rotate it in Doppler (`cs-shared`/`prd`) — the `sync-doppler-to-cloudflare-worker.js` pipeline in `contractor-scale-os` pushes the new value to this Worker's Cloudflare secret automatically, so only `.dev.vars` needs a manual update after rotation.
+
+### Don't
+
+- Don't give this Worker direct Supabase credentials — always go through the `contractor-scale-api` endpoint. This also means test rows created during manual verification can't be cleaned up from here; delete them via Supabase directly.
+- Don't let a caller-supplied field reach `logChange()` as `source` or `applied_by` — both are hardcoded (`'agent'` server-side on the API, `'mcp:google-ads-mcp-cs'` here).
 
 ## Tool Development Guide
 
