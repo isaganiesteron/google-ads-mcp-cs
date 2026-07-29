@@ -17,3 +17,7 @@ GOOGLE_ADS_DEVELOPER_TOKEN=your_developer_token_here
 # Format: 1234567890 (without dashes)
 GOOGLE_ADS_LOGIN_CUSTOMER_ID=your_customer_id_here
 
+# Change-log API key (optional locally — logChange() no-ops with a warning if unset)
+# Provisioned via Doppler (cs-shared/prd), synced to this Worker's Cloudflare secrets in production
+GOOGLE_ADS_CHANGE_LOG_API_KEY=your_change_log_api_key_here
+

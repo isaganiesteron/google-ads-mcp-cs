@@ -17,6 +17,7 @@ Copyright Google LLC. Supported by Google LLC and/or its affiliate(s). This solu
 - **SSE Support**: Real-time communication with MCP clients via Server-Sent Events (e.g. TypingMind)
 - **Streamable HTTP (MCP)**: Direct `POST /mcp` endpoint for MCP clients that use HTTP transport
 - **Production Logging**: Structured `[fetch]` / `[handleMessage]` logs for `wrangler tail` debugging
+- **Mutation Change-Log Write**: Every mutating tool call writes a best-effort audit row to the `contractor-scale-os` change-log system (see [Mutation Logging](#mutation-logging-change-log-write) below)
 - **TypeScript**: Full type safety and excellent developer experience
 - **Modular Tools**: Easy-to-extend tool system for Google Ads operations
 - **Production Ready**: Includes error handling, CORS, health checks, and session management
@@ -61,6 +62,7 @@ wrangler secret put GOOGLE_ADS_CLIENT_SECRET
 wrangler secret put GOOGLE_ADS_REFRESH_TOKEN
 wrangler secret put GOOGLE_ADS_DEVELOPER_TOKEN
 wrangler secret put GOOGLE_ADS_LOGIN_CUSTOMER_ID  # Optional
+wrangler secret put GOOGLE_ADS_CHANGE_LOG_API_KEY  # Optional, enables mutation logging
 ```
 
 Or for local development, create a `.dev.vars` file (this file should be in `.gitignore`):
@@ -71,6 +73,7 @@ GOOGLE_ADS_CLIENT_SECRET=your_client_secret
 GOOGLE_ADS_REFRESH_TOKEN=your_refresh_token
 GOOGLE_ADS_DEVELOPER_TOKEN=your_developer_token
 GOOGLE_ADS_LOGIN_CUSTOMER_ID=your_customer_id  # Optional
+GOOGLE_ADS_CHANGE_LOG_API_KEY=your_change_log_api_key  # Optional, see Mutation Logging section
 ```
 
 ### 5. Customize Your MCP Server
@@ -199,6 +202,32 @@ Use `wrangler tail` to stream logs from the deployed worker. Logs are prefixed f
 ```bash
 wrangler tail
 ```
+
+## Mutation Logging (Change-Log Write)
+
+This Worker shares Google Ads OAuth credentials with the main `contractor-scale-os` codebase's discovery-loop/Paperclip write path. To keep that codebase's `google_ads_change_log` review system (dashboard, Class A/B/C policy, ClickUp review tasks) aware of writes made from here too, every mutating tool call posts a best-effort audit row to the `contractor-scale-api` change-log endpoint (T-066).
+
+### Go-live gate
+
+All 19 mutating tools are gated behind a single flag, `MUTATIONS_ENABLED` (`src/index.ts`). While `false`, every mutating tool returns an error instead of touching the Google Ads API — no live mutations happen. Flip it to `true` only after verifying the logging path end-to-end (see "Testing" below); this is a manual, deliberate go-live step, not something toggled automatically.
+
+### How it works
+
+- `logChange()` (`src/index.ts`) posts to `POST https://contractor-scale-api.onrender.com/api/google-ads-change-log` with `X-API-Key: env.GOOGLE_ADS_CHANGE_LOG_API_KEY`.
+- **Best-effort, non-blocking**: `logChange()` swallows its own errors (network failure, api-server down, bad response) and only `console.error`s them — it never throws, and it never affects the tool's actual mutation result. If `GOOGLE_ADS_CHANGE_LOG_API_KEY` isn't set, it no-ops with a `console.warn` (useful for local dev without the key).
+- **One row per tool call**: bundled/bulk operations (e.g. `mutate_resources`) log a single row with the full `operations` array + result in `after_value`, not one row per operation.
+- **`reason` is auto-generated**, not caller-supplied — e.g. `` google-ads-mcp-cs: mutate_campaign_budgets ``. None of the 19 tool schemas take a `reason` input parameter.
+- **`validate_only: true` dry-runs are never logged** — they don't touch the live account, so logging them would misrepresent a no-op as an applied change.
+- 15 of the 19 tools share the `handleMutate()` choke point, which logs once, right after a successful mutation. The other 4 (`upload_click_conversions`, `apply_recommendations`, `dismiss_recommendations`, `mutate_resources`) have their own inline handlers and call `logChange()` directly.
+
+### Testing before flipping `MUTATIONS_ENABLED`
+
+1. Set `GOOGLE_ADS_CHANGE_LOG_API_KEY` in `.dev.vars` (via Doppler `cs-shared`/`prd`, or ask a teammate).
+2. Temporarily flip `MUTATIONS_ENABLED = true` locally only — never commit that flip until logging is verified.
+3. Run `npm run dev` and exercise a representative tool through each path (e.g. `mutate_shared_sets` for the `handleMutate` choke point, plus each of the 4 custom handlers), preferring fully inert/reversible operations (e.g. an unlinked negative-keyword shared set or campaign budget, created then removed) if testing against a real client account rather than a dedicated sandbox.
+4. Confirm each call produced a matching row: `GET https://contractor-scale-api.onrender.com/api/google-ads-change-log?customerId=<id>` with a `DASHBOARD_API_KEY`.
+5. Confirm the non-blocking design holds: temporarily point `CHANGE_LOG_API_BASE_URL` at an unreachable host and re-run a mutation — the tool should still return its normal success result while `[change-log] write threw:` appears in the logs.
+6. Revert both temporary changes, commit, deploy, then flip `MUTATIONS_ENABLED = true` for real and deploy again.
 
 ## Tool Development Guide
 

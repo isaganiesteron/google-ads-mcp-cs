@@ -12,6 +12,7 @@ declare namespace Cloudflare {
 		GOOGLE_ADS_CLIENT_SECRET: string;
 		GOOGLE_ADS_REFRESH_TOKEN: string;
 		GOOGLE_ADS_LOGIN_CUSTOMER_ID: string;
+		GOOGLE_ADS_CHANGE_LOG_API_KEY?: string;
 	}
 }
 interface Env extends Cloudflare.Env {}
@@ -29,6 +30,7 @@ declare namespace NodeJS {
 				| 'GOOGLE_ADS_CLIENT_SECRET'
 				| 'GOOGLE_ADS_REFRESH_TOKEN'
 				| 'GOOGLE_ADS_LOGIN_CUSTOMER_ID'
+				| 'GOOGLE_ADS_CHANGE_LOG_API_KEY'
 			>
 		> {}
 }

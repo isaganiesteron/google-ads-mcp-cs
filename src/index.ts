@@ -25,6 +25,8 @@ const CONFIG = {
 	keepAliveInterval: 30000, // 30 seconds
 } as const;
 
+const CHANGE_LOG_API_BASE_URL = 'https://contractor-scale-api.onrender.com';
+
 /**
  * ============================================================================
  * TOOL DEFINITIONS - Add your custom tools here
@@ -94,6 +96,45 @@ function successResult(data: any): ToolResult {
 	return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
+async function logChange(
+	env: Env,
+	entry: {
+		customer_id: string;
+		change_type: string;
+		campaign_id?: string | null;
+		entity_id?: string | null;
+		before_value?: unknown;
+		after_value?: unknown;
+		reason: string;
+		status?: 'applied' | 'failed';
+	}
+): Promise<void> {
+	if (!env.GOOGLE_ADS_CHANGE_LOG_API_KEY) {
+		console.warn('[change-log] GOOGLE_ADS_CHANGE_LOG_API_KEY not set — skipping log write');
+		return;
+	}
+	try {
+		const res = await fetch(`${CHANGE_LOG_API_BASE_URL}/api/google-ads-change-log`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-API-Key': env.GOOGLE_ADS_CHANGE_LOG_API_KEY,
+			},
+			body: JSON.stringify({
+				applied_by: 'mcp:google-ads-mcp-cs',
+				status: 'applied',
+				...entry,
+			}),
+		});
+		if (!res.ok) {
+			const text = await res.text().catch(() => '');
+			console.error(`[change-log] write failed: ${res.status} ${text.slice(0, 300)}`);
+		}
+	} catch (e) {
+		console.error('[change-log] write threw:', e instanceof Error ? e.message : String(e));
+	}
+}
+
 function parseOperations(raw: unknown): { ops: any[] } | { error: string } {
 	if (Array.isArray(raw)) return { ops: raw };
 	if (typeof raw === 'string') {
@@ -111,7 +152,8 @@ function parseOperations(raw: unknown): { ops: any[] } | { error: string } {
 async function handleMutate(
 	env: Env,
 	resource: string,
-	args: Record<string, unknown>
+	args: Record<string, unknown>,
+	changeType: string
 ): Promise<ToolResult> {
 	if (!MUTATIONS_ENABLED) return mutationsDisabledResult();
 	const customer_id = args.customer_id as string;
@@ -131,6 +173,14 @@ async function handleMutate(
 
 	try {
 		const result = await executeGoogleAdsMutate(creds, customer_id, resource, parsed.ops, login_customer_id, partial_failure, validate_only);
+		if (!validate_only) {
+			await logChange(env, {
+				customer_id,
+				change_type: changeType,
+				after_value: { operations: parsed.ops, result },
+				reason: `google-ads-mcp-cs: ${changeType}`,
+			});
+		}
 		return successResult(result);
 	} catch (e) {
 		return errorResult(e instanceof Error ? e.message : String(e));
@@ -509,7 +559,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'campaignBudgets', args),
+		handler: (args, env) => handleMutate(env, 'campaignBudgets', args, 'mutate_campaign_budgets'),
 	},
 
 	{
@@ -536,7 +586,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'campaigns', args),
+		handler: (args, env) => handleMutate(env, 'campaigns', args, 'mutate_campaigns'),
 	},
 
 	{
@@ -561,7 +611,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'adGroups', args),
+		handler: (args, env) => handleMutate(env, 'adGroups', args, 'mutate_ad_groups'),
 	},
 
 	{
@@ -587,7 +637,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'adGroupAds', args),
+		handler: (args, env) => handleMutate(env, 'adGroupAds', args, 'mutate_ads'),
 	},
 
 	{
@@ -615,7 +665,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'adGroupCriteria', args),
+		handler: (args, env) => handleMutate(env, 'adGroupCriteria', args, 'mutate_keywords'),
 	},
 
 	// ─── Phase 2: Targeting & Assets ─────────────────────────────────────────
@@ -643,7 +693,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'campaignCriteria', args),
+		handler: (args, env) => handleMutate(env, 'campaignCriteria', args, 'mutate_campaign_criteria'),
 	},
 
 	{
@@ -668,7 +718,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'biddingStrategies', args),
+		handler: (args, env) => handleMutate(env, 'biddingStrategies', args, 'mutate_bidding_strategies'),
 	},
 
 	{
@@ -693,7 +743,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'adGroupBidModifiers', args),
+		handler: (args, env) => handleMutate(env, 'adGroupBidModifiers', args, 'mutate_ad_group_bid_modifiers'),
 	},
 
 	{
@@ -719,7 +769,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'assets', args),
+		handler: (args, env) => handleMutate(env, 'assets', args, 'mutate_assets'),
 	},
 
 	{
@@ -745,7 +795,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'campaignAssets', args),
+		handler: (args, env) => handleMutate(env, 'campaignAssets', args, 'mutate_campaign_assets'),
 	},
 
 	// ─── Phase 3: Conversions & Audiences ────────────────────────────────────
@@ -772,7 +822,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'conversionActions', args),
+		handler: (args, env) => handleMutate(env, 'conversionActions', args, 'mutate_conversion_actions'),
 	},
 
 	{
@@ -814,6 +864,12 @@ const TOOLS: Tool[] = [
 
 			try {
 				const result = await uploadClickConversions(creds, customer_id, parsed.ops, login_customer_id, partial_failure);
+				await logChange(env, {
+					customer_id,
+					change_type: 'upload_click_conversions',
+					after_value: result,
+					reason: 'google-ads-mcp-cs: upload_click_conversions',
+				});
 				return successResult(result);
 			} catch (e) {
 				return errorResult(e instanceof Error ? e.message : String(e));
@@ -843,7 +899,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'userLists', args),
+		handler: (args, env) => handleMutate(env, 'userLists', args, 'mutate_user_lists'),
 	},
 
 	// ─── Phase 4: Advanced ───────────────────────────────────────────────────
@@ -886,6 +942,12 @@ const TOOLS: Tool[] = [
 
 			try {
 				const result = await applyRecommendations(creds, customer_id, parsed.ops, login_customer_id);
+				await logChange(env, {
+					customer_id,
+					change_type: 'apply_recommendations',
+					after_value: result,
+					reason: 'google-ads-mcp-cs: apply_recommendations',
+				});
 				return successResult(result);
 			} catch (e) {
 				return errorResult(e instanceof Error ? e.message : String(e));
@@ -929,6 +991,12 @@ const TOOLS: Tool[] = [
 
 			try {
 				const result = await dismissRecommendations(creds, customer_id, parsed.ops, login_customer_id);
+				await logChange(env, {
+					customer_id,
+					change_type: 'dismiss_recommendations',
+					after_value: result,
+					reason: 'google-ads-mcp-cs: dismiss_recommendations',
+				});
 				return successResult(result);
 			} catch (e) {
 				return errorResult(e instanceof Error ? e.message : String(e));
@@ -959,7 +1027,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'sharedSets', args),
+		handler: (args, env) => handleMutate(env, 'sharedSets', args, 'mutate_shared_sets'),
 	},
 
 	{
@@ -983,7 +1051,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'sharedCriteria', args),
+		handler: (args, env) => handleMutate(env, 'sharedCriteria', args, 'mutate_shared_set_criteria'),
 	},
 
 	{
@@ -1007,7 +1075,7 @@ const TOOLS: Tool[] = [
 			},
 			required: ['customer_id', 'operations'],
 		},
-		handler: (args, env) => handleMutate(env, 'campaignSharedSets', args),
+		handler: (args, env) => handleMutate(env, 'campaignSharedSets', args, 'mutate_campaign_shared_sets'),
 	},
 
 	{
@@ -1051,6 +1119,14 @@ const TOOLS: Tool[] = [
 
 			try {
 				const result = await executeUnifiedMutate(creds, customer_id, parsed.ops, login_customer_id, partial_failure, validate_only);
+				if (!validate_only) {
+					await logChange(env, {
+						customer_id,
+						change_type: 'mutate_resources',
+						after_value: { operations: parsed.ops, result },
+						reason: 'google-ads-mcp-cs: mutate_resources',
+					});
+				}
 				return successResult(result);
 			} catch (e) {
 				return errorResult(e instanceof Error ? e.message : String(e));
