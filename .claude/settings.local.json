@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npm run dev:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:googleads.googleapis.com)",
+      "PowerShell(cd \"e:\\\\google-ads-mcp-cs\"; Select-String -Path \"src\\\\index.ts\" -Pattern \"^\\\\s+name: '\" | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "PowerShell(Invoke-RestMethod -Uri \"https://google-ads-mcp.isagani.workers.dev/\" -Method GET)",
+      "Bash(wrangler deploy *)"
     ]
   }
 }

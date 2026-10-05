@@ -84,6 +84,20 @@ Use these prompts in TypingMind to verify your MCP server is working correctly. 
 
 ---
 
+### 11. Safe Mutation Test — Create + Remove Shared Set (Change-Log Verification, T-066)
+
+Use this one when you want to verify the mutation tools *and* change-log write path (T-066) actually work end-to-end, without touching any live campaign, ad, or spend. Safe to run against a real account.
+
+**Prompt:** "Using Google Ads customer ID 9604687125, create a new shared negative keyword list called 'T-066 TEST DELETE ME' with type NEGATIVE_KEYWORDS, using mutate_shared_sets. Do not link it to any campaign — just create it standalone. Then, using the resource name it returns, immediately remove that same shared set with another mutate_shared_sets call."
+
+**Expected:** Two `mutate_shared_sets` calls — a `create` operation returning a new shared set `resourceName` under customer `9604687125`, then a `remove` operation on that exact resource name. Both should succeed.
+
+**Why this is safe:** a shared set is a standalone list object. It only affects live ad serving once it's attached to a campaign via `mutate_campaign_shared_sets` — this test deliberately never does that, so the account's real campaigns, ads, and spend are untouched throughout.
+
+**Verifying the change-log write:** each of those two mutations should also produce one row in `contractor-scale-os`'s `google_ads_change_log` table (`change_type: "mutate_shared_sets"`, `applied_by: "mcp:google-ads-mcp-cs"`, `customer_id: "9604687125"`). Ask an admin to check the change-log dashboard/table for two new rows matching that shape, then delete them once confirmed (only the audit-log rows need cleanup — the actual Google Ads shared set was already removed by the prompt itself).
+
+---
+
 ## Quick Verification Checklist
 
 After running all prompts, verify:
@@ -135,4 +149,3 @@ For reference, here are some common query patterns you might use:
 - **With ordering**: `SELECT ... FROM resource ORDER BY metrics.clicks DESC`
 - **With limit**: `SELECT ... FROM resource LIMIT 100`
 - **With HAVING**: `SELECT ... FROM resource HAVING metrics.clicks > 100`
-
