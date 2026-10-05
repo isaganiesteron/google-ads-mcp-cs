@@ -12,7 +12,7 @@ interface GoogleAdsCredentials {
 	login_customer_id?: string;
 }
 
-const GOOGLE_ADS_API_VERSION = 'v22';
+const GOOGLE_ADS_API_VERSION = 'v24';
 const GOOGLE_ADS_API_BASE = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}`;
 const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
